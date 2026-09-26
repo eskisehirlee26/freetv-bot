@@ -90,7 +90,9 @@ bot.command('admin', (ctx) => {
     }
     ctx.reply('Admin Paneline Hoş Geldiniz. Ne yapmak istersiniz?', Markup.inlineKeyboard([
         [Markup.button.callback('Kullanıcı Banla', 'action_ban'), Markup.button.callback('Ban Kaldır', 'action_unban')],
-        [Markup.button.callback('M3U8 Link Güncelle', 'action_updatelink')]
+        [Markup.button.callback('M3U8 Link Güncelle', 'action_updatelink')],
+        [Markup.button.callback('Canlı İstatistikler', 'action_stats'), Markup.button.callback('Kullanıcı Sorgula', 'action_query')],
+        [Markup.button.callback('Bakım Modu Yönetimi', 'action_maintenance')]
     ]));
 });
 
@@ -105,6 +107,18 @@ bot.action('action_unban', (ctx) => {
 
 bot.action('action_updatelink', (ctx) => {
     ctx.reply('Yeni M3U8 linkini şu formatta gruba yazın:\n\n/yenilink http://yenisunucu.com/yayin.m3u8');
+});
+
+bot.action('action_stats', (ctx) => {
+    ctx.reply('İstatistikleri görmek için şu komutu gruba yazın:\n\n/istatistik');
+});
+
+bot.action('action_query', (ctx) => {
+    ctx.reply('Bir kullanıcıyı sorgulamak için şu komutu gruba yazın:\n\n/sorgula FREE-XXXXX\nveya\n/sorgula <Telegram_ID>');
+});
+
+bot.action('action_maintenance', (ctx) => {
+    ctx.reply('Sistemi bakıma almak veya bakımdan çıkarmak için şu komutları kullanın:\n\nBakımı Açmak İçin: /bakim ac\nBakımı Kapatmak İçin: /bakim kapat');
 });
 
 bot.command('ban', (ctx) => {
