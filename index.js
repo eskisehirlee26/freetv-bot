@@ -92,8 +92,13 @@ bot.command('admin', (ctx) => {
         [Markup.button.callback('Kullanıcı Banla', 'action_ban'), Markup.button.callback('Ban Kaldır', 'action_unban')],
         [Markup.button.callback('M3U8 Link Güncelle', 'action_updatelink')],
         [Markup.button.callback('Canlı İstatistikler', 'action_stats'), Markup.button.callback('Kullanıcı Sorgula', 'action_query')],
-        [Markup.button.callback('Bakım Modu Yönetimi', 'action_maintenance')]
+        [Markup.button.callback('Bakım Modu Yönetimi', 'action_maintenance')],
+        [Markup.button.callback('📢 Genel Gruba Duyuru Gönder', 'action_announce')]
     ]));
+});
+
+bot.command('chatid', (ctx) => {
+    ctx.reply(`Bu grubun ID numarası:\n\`${ctx.chat.id}\``, { parse_mode: 'Markdown' });
 });
 
 // Admin aksiyonları
@@ -119,6 +124,10 @@ bot.action('action_query', (ctx) => {
 
 bot.action('action_maintenance', (ctx) => {
     ctx.reply('Sistemi bakıma almak veya bakımdan çıkarmak için şu komutları kullanın:\n\nBakımı Açmak İçin: /bakim ac\nBakımı Kapatmak İçin: /bakim kapat');
+});
+
+bot.action('action_announce', (ctx) => {
+    ctx.reply('Genel kullanıcı grubuna duyuru göndermek için şu komutu yazın:\n\n/duyuru Merhaba FREE TV kullanıcıları, yeni güncelleme geldi!');
 });
 
 bot.command('ban', (ctx) => {
@@ -286,6 +295,33 @@ app.post('/verify-code', (ctx_req, res) => {
             });
         });
     });
+});
+
+// --- DUYURU SİSTEMİ ---
+// Diğer genel grubunuzun ID'sini buraya yazacaksınız (Önce botu o gruba ekleyip /chatid yazarak öğrenmelisiniz)
+const PUBLIC_GROUP_ID = process.env.PUBLIC_GROUP_ID || '-1003723263969'; 
+
+bot.command('duyuru', (ctx) => {
+    if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
+    
+    const message = ctx.message.text.replace('/duyuru ', '').trim();
+    if (!message || message === '/duyuru') {
+        return ctx.reply('Lütfen bir mesaj yazın. Örnek:\n/duyuru Merhaba kullanıcılar!');
+    }
+
+    if (!PUBLIC_GROUP_ID) {
+        return ctx.reply('⚠️ **HATA:** Genel grup ID\'si kodun içinde (`index.js`) ayarlanmamış!\n\n1. Lütfen botu üyelerin bulunduğu genel gruba ekleyin.\n2. O genel gruba gidip `/chatid` yazın.\n3. Çıkan eksi (-) ile başlayan numarayı bana bildirin ki kodun içine ekleyeyim.', { parse_mode: 'Markdown' });
+    }
+
+    const formattedMessage = `📢 **FREE TV DUYURU**\n━━━━━━━━━━━━━━━━━━━━\n\n${message}\n\n━━━━━━━━━━━━━━━━━━━━`;
+    
+    bot.telegram.sendMessage(PUBLIC_GROUP_ID, formattedMessage, { parse_mode: 'Markdown' })
+        .then(() => {
+            ctx.reply('✅ Duyurunuz genel gruba başarıyla gönderildi!');
+        })
+        .catch((err) => {
+            ctx.reply(`❌ Duyuru gönderilirken bir hata oluştu. Botun genel grupta yönetici (admin) veya mesaj gönderme yetkisi olduğundan emin olun.\nHata: ${err.message}`);
+        });
 });
 
 const PORT = process.env.PORT || 3000;
