@@ -142,6 +142,71 @@ bot.command('yenilink', (ctx) => {
     });
 });
 
+// BAKIM MODU
+bot.command('bakim', (ctx) => {
+    if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
+    const action = ctx.message.text.replace('/bakim ', '').trim().toLowerCase();
+    
+    if (action === 'ac') {
+        db.run(`UPDATE settings SET value = 'true' WHERE key = 'maintenance'`, [], (err) => {
+            if (err) return ctx.reply('Hata oluştu.');
+            ctx.reply('🛑 DİKKAT: BAKIM MODU AÇILDI! Artık kimse uygulamaya giremez.');
+        });
+    } else if (action === 'kapat') {
+        db.run(`UPDATE settings SET value = 'false' WHERE key = 'maintenance'`, [], (err) => {
+            if (err) return ctx.reply('Hata oluştu.');
+            ctx.reply('✅ Bakım Modu KAPATILDI! Kullanıcılar tekrar girebilir.');
+        });
+    } else {
+        ctx.reply('⚠️ Kullanım: /bakim ac VEYA /bakim kapat');
+    }
+});
+
+// KULLANICI DEDEKTİFİ
+bot.command('sorgula', (ctx) => {
+    if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
+    const target = ctx.message.text.replace('/sorgula ', '').trim();
+    if (!target || target === '/sorgula') return ctx.reply('⚠️ Kullanım: /sorgula FREE-XXXXX');
+
+    db.get(`SELECT * FROM users WHERE app_username = ? OR telegram_id = ?`, [target, target], (err, user) => {
+        if (err) return ctx.reply('Veritabanı hatası.');
+        if (!user) return ctx.reply('❌ Böyle bir kullanıcı bulunamadı.');
+
+        const info = `
+🔍 **KULLANICI SORGUSU**
+ID: ${user.id}
+Telegram ID: ${user.telegram_id}
+Telegram Adı: @${user.username || 'Gizli'}
+Uygulama Kodu: ${user.app_username}
+Durum: ${user.status === 'active' ? '🟢 Aktif' : '🔴 BANLI'}
+Kayıt Tarihi: ${new Date(user.created_at).toLocaleString('tr-TR')}
+        `;
+        ctx.reply(info, { parse_mode: 'Markdown' });
+    });
+});
+
+// CANLI İSTATİSTİKLER
+bot.command('istatistik', (ctx) => {
+    if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
+    
+    db.get(`SELECT 
+        COUNT(*) as total, 
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN status = 'banned' THEN 1 ELSE 0 END) as banned
+        FROM users`, [], (err, stats) => {
+        
+        if (err) return ctx.reply('Veritabanı hatası.');
+        
+        const report = `
+📊 **SİSTEM İSTATİSTİKLERİ**
+Toplam Kayıtlı Üye: ${stats.total || 0}
+🟢 Aktif Üyeler: ${stats.active || 0}
+🔴 Banlı Üyeler: ${stats.banned || 0}
+        `;
+        ctx.reply(report, { parse_mode: 'Markdown' });
+    });
+});
+
 
 // --- EXPRESS API SUNUCU KISMI (UYGULAMA İÇİN) ---
 
@@ -149,20 +214,30 @@ app.post('/verify-code', (ctx_req, res) => {
     const { app_username, code } = ctx_req.body;
     if (!app_username || !code) return res.status(400).json({ error: 'Kullanıcı Adı ve Şifre gerekli' });
 
-    db.get(`SELECT * FROM users WHERE app_username = ? AND otp_code = ?`, [app_username, code], (err, user) => {
+    // Önce Bakım Modu açık mı kontrol et
+    db.get(`SELECT value FROM settings WHERE key = 'maintenance'`, [], (err, maintenanceSetting) => {
         if (err) return res.status(500).json({ error: 'Veritabanı hatası' });
-        if (!user) return res.status(404).json({ error: 'Geçersiz Kullanıcı Adı veya Şifre' });
-        if (user.status === 'banned') return res.status(403).json({ error: 'Hesabınız yasaklanmıştır.' });
+        
+        if (maintenanceSetting && maintenanceSetting.value === 'true') {
+            return res.status(503).json({ error: 'BAKIM_MODU', message: 'Sistem şu an bakımdadır, lütfen daha sonra tekrar deneyin.' });
+        }
 
-        // Kod doğru ve yasaklı değilse linki ver
-        db.get(`SELECT value FROM settings WHERE key = 'm3u8_link'`, [], (err, setting) => {
-            if (err || !setting) return res.status(500).json({ error: 'Ayar bulunamadı' });
-            res.json({ success: true, m3u8_url: setting.value, user_status: user.status });
+        // Bakım modu kapalıysa normal giriş yap
+        db.get(`SELECT * FROM users WHERE app_username = ? AND otp_code = ?`, [app_username, code], (err, user) => {
+            if (err) return res.status(500).json({ error: 'Veritabanı hatası' });
+            if (!user) return res.status(404).json({ error: 'Geçersiz Kullanıcı Adı veya Şifre' });
+            if (user.status === 'banned') return res.status(403).json({ error: 'Hesabınız yasaklanmıştır.' });
+
+            // Kod doğru ve yasaklı değilse linki ver
+            db.get(`SELECT value FROM settings WHERE key = 'm3u8_link'`, [], (err, setting) => {
+                if (err || !setting) return res.status(500).json({ error: 'Ayar bulunamadı' });
+                res.json({ success: true, m3u8_url: setting.value, user_status: user.status });
+            });
         });
     });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Express API sunucusu ${PORT} portunda çalışıyor.`);
 function launchBot() {

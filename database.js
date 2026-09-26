@@ -40,6 +40,13 @@ async function initDb() {
       VALUES ('m3u8_link', 'http://ornekpanel.com:8080/live/user/pass/stream.m3u8')
       ON CONFLICT (key) DO NOTHING
     `);
+
+    // Bakım Modu Ayarı
+    await pool.query(`
+      INSERT INTO settings (key, value) 
+      VALUES ('maintenance', 'false')
+      ON CONFLICT (key) DO NOTHING
+    `);
     
     console.log('✅ Veritabanı tabloları hazır.');
   } catch (err) {
