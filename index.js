@@ -224,6 +224,43 @@ Toplam Kayıtlı Üye: ${stats.total || 0}
 
 // --- EXPRESS API SUNUCU KISMI (UYGULAMA İÇİN) ---
 
+// Güvenlik İhlali ve Otomatik Ban Endpoint'i
+app.post('/report-security-violation', (req, res) => {
+    const { app_username, threat_type, details } = req.body;
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    if (!app_username) return res.status(400).json({ error: 'Geçersiz veri' });
+
+    // 1. Kullanıcıyı anında veritabanında BANLA
+    db.run(
+        `UPDATE users SET status = 'banned' WHERE app_username = ?`,
+        [app_username],
+        function(err) {
+            if (err) console.error('Banlama hatası:', err);
+
+            // 2. Kullanıcı bilgilerini çekip Telegram Admin Grubuna Kırmızı Alarm Gönder
+            db.get(`SELECT * FROM users WHERE app_username = ?`, [app_username], (err, user) => {
+                if (ADMIN_GROUP_ID && user) {
+                    const alarmMessage = `
+🚨🚨 **ACİL GÜVENLİK ALARMI: AĞ DİNLEME TESPİT EDİLDİ!** 🚨🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 **Kullanıcı:** @${user.username || 'Bilinmiyor'} (ID: ${user.telegram_id || 'Bilinmiyor'})
+📱 **Uygulama Kodu:** \`${app_username}\`
+⚠️ **Tehdit Türü:** \`${threat_type}\`
+🔍 **Detay:** ${details || 'HttpCanary / Proxy tespit edildi'}
+🌐 **Saldırgan IP:** \`${clientIp}\`
+🛑 **Sistem Aksiyonu:** Kullanıcı hesabı **OTOMATİK VE KALICI OLARAK BANLANDI!**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    `;
+                    bot.telegram.sendMessage(ADMIN_GROUP_ID, alarmMessage, { parse_mode: 'Markdown' }).catch(e => console.log('Telegram Mesaj Hatası:', e));
+                }
+            });
+
+            res.json({ success: true, message: 'İhlal kaydedildi ve hesap askıya alındı.' });
+        }
+    );
+});
+
 app.post('/verify-code', (ctx_req, res) => {
     const { app_username, code } = ctx_req.body;
     if (!app_username || !code) return res.status(400).json({ error: 'Kullanıcı Adı ve Şifre gerekli' });
